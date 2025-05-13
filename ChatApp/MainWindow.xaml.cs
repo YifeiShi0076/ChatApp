@@ -45,7 +45,7 @@ namespace RedisChatApp
 			}
 			catch (Exception ex)
 			{
-				MessageBox.Show("连接失败：" + ex.Message);
+				MessageBox.Show("Redis服务器连接失败：" + ex.Message);
 			}
 		}
 

@@ -10,6 +10,8 @@
 
         <!-- 左侧面板 -->
         <StackPanel Grid.Column="0" Margin="10">
+
+            <Label HorizontalAlignment="Center">Connect to Redis Server</Label>
             <TextBlock Text="IP:" Margin="0,0,0,5" />
             <TextBox Name="IpTextBox" Margin="0,0,0,10" />
 
