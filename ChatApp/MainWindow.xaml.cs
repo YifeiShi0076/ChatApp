@@ -3,125 +3,78 @@ using System.Printing;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Documents;
 using StackExchange.Redis;
 
 namespace RedisChatApp
 {
 	public partial class MainWindow : Window
 	{
-		private const string RedisConnectionString = "localhost";
-		private const string ChatChannel = "chat_channel";
-		private const string StatusChannel = "status_channel";
-
-		private readonly string ClientId = Guid.NewGuid().ToString();
-		private ConnectionMultiplexer _redis;
-		private ISubscriber _subscriber;
+		private ConnectionMultiplexer redis;
+		private ISubscriber subscriber;
+		private string chatChannel;
 
 		public MainWindow()
 		{
 			InitializeComponent();
-
-			// 初始化 Redis 连接并订阅频道
-			InitializeRedis();
 		}
 
-		private async void InitializeRedis()
+		private async void ConnectButton_Click(object sender, RoutedEventArgs e)
 		{
+			string ip = IpTextBox.Text.Trim();
+			string port = PortTextBox.Text.Trim();
+			chatChannel = ChannelTextBox.Text.Trim();
+
+			if (string.IsNullOrWhiteSpace(ip) || string.IsNullOrWhiteSpace(port) || string.IsNullOrWhiteSpace(chatChannel))
+			{
+				MessageBox.Show("请输入 IP、端口 和 频道。");
+				return;
+			}
+
 			try
 			{
-				_redis = await ConnectionMultiplexer.ConnectAsync(RedisConnectionString);
-				_subscriber = _redis.GetSubscriber();
+				redis = await ConnectionMultiplexer.ConnectAsync($"{ip}:{port}");
+				subscriber = redis.GetSubscriber();
 
-				// 订阅聊天频道
-				await _subscriber.SubscribeAsync(ChatChannel, (channel, message) =>
+				await subscriber.SubscribeAsync(chatChannel, (channel, message) =>
 				{
-					var msg = (string)message;
-					var parts = msg.Split(new[] { ':' }, 2);
-					if (parts.Length == 2)
-					{
-						var senderId = parts[0];
-						var content = parts[1];
-						if (senderId != ClientId)
-						{
-							Dispatcher.Invoke(() =>
-							{
-								ChatBox.AppendText($"对方：{content}\n");
-								ChatBox.ScrollToEnd();
-							});
-						}
-					}
+					Dispatcher.Invoke(() => AddChatMessage(message, isSelf: false));
 				});
 
-				// 订阅状态频道
-				await _subscriber.SubscribeAsync(StatusChannel, (channel, message) =>
-				{
-					var msg = (string)message;
-					var parts = msg.Split(new[] { ':' }, 2);
-					if (parts.Length == 2)
-					{
-						var senderId = parts[0];
-						var status = parts[1];
-						if (senderId != ClientId)
-						{
-							Dispatcher.Invoke(() =>
-							{
-								if (status == "online")
-								{
-									ChatBox.AppendText($"对方上线\n");
-								}
-								else if (status == "offline")
-								{
-									ChatBox.AppendText($"对方下线\n");
-								}
-								ChatBox.ScrollToEnd();
-							});
-						}
-					}
-				});
-
-				// 发布上线通知
-				await _subscriber.PublishAsync(StatusChannel, $"{ClientId}:online");
-				ChatBox.AppendText("你已上线\n");
+				ClientListBox.Items.Add($"连接成功 - 频道: {chatChannel}");
 			}
 			catch (Exception ex)
 			{
-				MessageBox.Show($"Redis 连接失败: {ex.Message}");
+				MessageBox.Show("连接失败：" + ex.Message);
 			}
 		}
 
-		private async void SendMessage_Click(object sender, RoutedEventArgs e)
+		private async void SendButton_Click(object sender, RoutedEventArgs e)
 		{
-			var message = InputBox.Text.Trim();
-			if (!string.IsNullOrEmpty(message))
+			if (subscriber == null || string.IsNullOrWhiteSpace(chatChannel))
 			{
-				// 发布聊天消息
-				await _subscriber.PublishAsync(ChatChannel, $"{ClientId}:{message}");
-
-				// 显示自己的消息
-				ChatBox.AppendText($"你：{message}\n");
-				ChatBox.ScrollToEnd();
-				InputBox.Clear();
+				MessageBox.Show("请先连接 Redis 并指定频道。");
+				return;
 			}
+
+			string message = MessageTextBox.Text.Trim();
+			if (string.IsNullOrWhiteSpace(message))
+				return;
+
+			await subscriber.PublishAsync(chatChannel, message);
+			AddChatMessage(message, isSelf: true);
+			MessageTextBox.Clear();
 		}
 
-		protected override async void OnClosed(EventArgs e)
+		private void AddChatMessage(string message, bool isSelf)
 		{
-			base.OnClosed(e);
-
-			// 发布下线通知
-			if (_subscriber != null)
+			var paragraph = new Paragraph(new Run(message))
 			{
-				await _subscriber.PublishAsync(StatusChannel, $"{ClientId}:offline");
-			}
+				TextAlignment = isSelf ? TextAlignment.Right : TextAlignment.Left
+			};
 
-			// 关闭 Redis 连接
-			if (_redis != null)
-			{
-				await _redis.CloseAsync();
-				_redis.Dispose();
-			}
-
-			Environment.Exit(0); // 退出应用程序
+			ChatTextBox.Document.Blocks.Add(paragraph);
+			ChatTextBox.ScrollToEnd();
 		}
 	}
 }
