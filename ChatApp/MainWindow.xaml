@@ -11,17 +11,12 @@
         <!-- 左侧面板 -->
         <StackPanel Grid.Column="0" Margin="10">
 
-            <Label HorizontalAlignment="Center">Connect to Redis Server</Label>
-            <TextBlock Text="IP:" Margin="0,0,0,5" />
-            <TextBox Name="IpTextBox" Margin="0,0,0,10" />
-
-            <TextBlock Text="Port:" Margin="0,0,0,5" />
-            <TextBox Name="PortTextBox" Margin="0,0,0,10" />
+            <Label HorizontalAlignment="Center" Content="Subscribe the channel"/>
 
             <TextBlock Text="Channel:" Margin="0,0,0,5" />
             <TextBox Name="ChannelTextBox" Margin="0,0,0,10" />
 
-            <Button Content="Connect" Name="ConnectButton" Width="100" Margin="0,0,0,10" Click="ConnectButton_Click" />
+            <Button Content="Subscribe" Name="SubscribeButton" Width="100" Margin="0,0,0,10" Click="SubscribeButton_Click" />
 
             <TextBlock Text="Status:" Margin="0,0,0,5" />
             <ListBox Name="ClientListBox" Height="206" />

@@ -14,8 +14,8 @@ namespace ChatApp
 		{
 			base.OnStartup(e);
 
-			var mainWindow = new MainWindow();
-			mainWindow.Show();
+			var startWindow = new ConnectWindow();
+			startWindow.Show();
 		}
 	}
 

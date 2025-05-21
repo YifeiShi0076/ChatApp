@@ -6,116 +6,84 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Documents;
 using StackExchange.Redis;
+using ChatApp.Services;
 
 namespace RedisChatApp
 {
 	public partial class MainWindow : Window
 	{
-		private ConnectionMultiplexer redis;
-		private ISubscriber subscriber;
-		private string chatChannel;
+		private RedisChatService chatService;
+		private string currentChannel;
 		private string clientId;
 
-		// 添加：已订阅的频道记录
-		private HashSet<string> subscribedChannels = new HashSet<string>();
-
-		public MainWindow()
+		public MainWindow(RedisChatService redisService, string clientId)
 		{
 			InitializeComponent();
-			clientId = $"Client-{Guid.NewGuid().ToString().Substring(0, 8)}";
+			this.chatService = redisService;
+			this.clientId = clientId;
+
+			chatService.OnMessageReceived += HandleIncomingMessage;
+
 		}
 
-		private async void ConnectButton_Click(object sender, RoutedEventArgs e)
+		private async void SubscribeButton_Click(object sender, RoutedEventArgs e)
 		{
-			string ip = IpTextBox.Text.Trim();
-			string port = PortTextBox.Text.Trim();
-			chatChannel = ChannelTextBox.Text.Trim();
+			
+			currentChannel = ChannelTextBox.Text.Trim();
 
-			if (string.IsNullOrWhiteSpace(ip) || string.IsNullOrWhiteSpace(port) || string.IsNullOrWhiteSpace(chatChannel))
-			{
-				MessageBox.Show("请输入 IP、端口 和 频道。");
-				return;
-			}
-
-			if (subscribedChannels.Contains(chatChannel))
-			{
-				ClientListBox.Items.Add($"[{clientId}] 你已经订阅该频道，请勿重复订阅。");
-				return;
-			}
-
-			try
-			{
-				redis ??= await ConnectionMultiplexer.ConnectAsync($"{ip}:{port}");
-				subscriber ??= redis.GetSubscriber();
-
-				await subscriber.SubscribeAsync(chatChannel, (channel, message) =>
-				{
-					try
-					{
-						var data = JsonSerializer.Deserialize<ChatMessage>(message);
-						if (data?.Sender != clientId)
-						{
-							Dispatcher.Invoke(() =>
-							{
-								AddChatMessage($"[{data.Sender}]: {data.Message}", isSelf: false);
-							});
-						}
-					}
-					catch
-					{
-						// 忽略格式错误
-					}
-				});
-
-				// 添加记录
-				subscribedChannels.Add(chatChannel);
-				ClientListBox.Items.Add($"[{clientId}] 连接成功 - 频道: {chatChannel}");
-			}
-			catch (Exception ex)
-			{
-				MessageBox.Show("连接失败：" + ex.Message);
-			}
+			string result = await chatService.SubscribeAsync(currentChannel);
+			ClientListBox.Items.Add($"[{clientId}] {result}");
 		}
 
 		private async void SendButton_Click(object sender, RoutedEventArgs e)
 		{
-			if (subscriber == null || string.IsNullOrWhiteSpace(chatChannel))
+			if (string.IsNullOrWhiteSpace(currentChannel))
 			{
-				MessageBox.Show("请先连接 Redis 并指定频道。");
+				MessageBox.Show("请先连接频道。");
 				return;
 			}
 
 			string text = MessageTextBox.Text.Trim();
 			if (string.IsNullOrWhiteSpace(text)) return;
 
-			var payload = new ChatMessage
-			{
-				Sender = clientId,
-				Message = text
-			};
-
-			string json = JsonSerializer.Serialize(payload);
-			await subscriber.PublishAsync(chatChannel, json);
-
+			await chatService.SendMessageAsync(currentChannel, text);
 			AddChatMessage(text, isSelf: true);
 			MessageTextBox.Clear();
 		}
 
+		private void HandleIncomingMessage(string senderId, string message)
+		{
+			AddChatMessage($"[{senderId}]: {message}", isSelf: false);
+		}
+
 		private void AddChatMessage(string message, bool isSelf)
 		{
+			if (!Dispatcher.CheckAccess())
+			{
+				Dispatcher.Invoke(() => AddChatMessage(message, isSelf));
+				return;
+			}
 			var paragraph = new Paragraph(new Run(message))
 			{
 				TextAlignment = isSelf ? TextAlignment.Right : TextAlignment.Left
 			};
-
+			// if (isSelf)
+			//{
+			//	// Console.WriteLine($"[{DateTime.Now}] {message}");
+			//	Console.WriteLine(paragraph.TextAlignment);
+			//}
+			string text = string.Empty;
+			foreach (var inline in paragraph.Inlines)
+			{
+				if (inline is Run run) // 检查 Inline 是否是 Run 类型
+				{
+					text += run.Text; // 累加 Run 的文本内容
+				}
+			}
+			Console.WriteLine(text);
+			//ChatTextBox.AppendText(text);
 			ChatTextBox.Document.Blocks.Add(paragraph);
 			ChatTextBox.ScrollToEnd();
-		}
-
-		private class ChatMessage
-		{
-			public string Sender { get; set; }
-			public string Message { get; set; }
 		}
 	}
 }
