@@ -16,5 +16,24 @@
         <Button Content="连接" Width="100" Margin="0,15"
                 HorizontalAlignment="Right"
                 Click="ConnectButton_Click"/>
+
+        <Button Content="测试 MySQL 连接" Width="100" Margin="0,15" 
+                HorizontalAlignment="Right"
+                Click="OnTestMySqlClick" />
+
+        <TextBox x:Name="TxtName" Width="200" />
+        <WrapPanel Margin="0,10,0,10">
+            <Button Content="新增" Width="80" Click="OnAddClick" />
+            <Button Content="删除" Width="80" Margin="10,0,0,0" Click="OnDeleteClick" />
+        </WrapPanel>
+        <DataGrid x:Name="DgUsers"
+              AutoGenerateColumns="False"
+              IsReadOnly="True"
+              Height="200">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50"/>
+                <DataGridTextColumn Header="姓名" Binding="{Binding Name}" Width="*"/>
+            </DataGrid.Columns>
+        </DataGrid>
     </StackPanel>
 </Window>
